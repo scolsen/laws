@@ -1,0 +1,188 @@
+(doc Laws
+  ("Defines macros for augmenting interfaces with algerbraic laws and " false)
+  "for checking whether or not implementations satisfy these laws on-demand.")
+(defmodule Laws
+; Substitution engine
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (hidden law-list-error)
+  (defndynamic law-list-error [laws]
+    (String.concat
+      ["Expected an array of even numbered law forms, but got: "
+       (str laws)]))
+
+  (hidden var-list-error)
+  (defndynamic var-list-error [vars]
+    (String.concat
+      ["Expected an array of even numbered variable forms, but got: "
+       (str vars)]))
+
+  (hidden bad-equation)
+  (defndynamic bad-equation [form]
+    (String.concat
+      ["Expected an equation, but got: "
+       (str form)]))
+
+  (hidden equation-or-error)
+  (defndynamic equation-or-error [form]
+    (if (and (= (car form) '=)
+             (= 3 (length form)))
+        true
+        (macro-error (Laws.bad-equation form))))
+
+  (hidden law-array-ok?)
+  (defndynamic law-array-ok? [laws]
+    (if (and (array? laws)
+             (= 0 (imod (length laws) 2)))
+        (do (map Laws.equation-or-error (filter list? laws)) true)
+        (macro-error (Laws.law-list-error laws))))
+
+  (hidden var-array-ok?)
+  (defndynamic var-array-ok? [vars]
+    (if (array? vars)
+        (if (all? symbol? vars)
+            true
+            (macro-error (Laws.var-list-error vars)))
+        (macro-error (Laws.var-list-error vars))))
+
+  (hidden law-dict-name)
+  (defndynamic law-dict-name [interface-name]
+    (Symbol.concat [interface-name '- 'laws]))
+
+  (hidden arglist-ok?)
+  (defndynamic arglist-ok? [arglist]
+    (if (and (array? arglist)
+             (= 0 (mod (length arglist) 2)))
+        true
+        (macro-error (Laws.bad-arglist arglist))))
+
+  (hidden substitute)
+  (defndynamic substitute [target replacement form]
+    (map (fn [x] (if (not (symbol? x))
+                     (if (or (list? x) (array? x))
+                               (Laws.substitute target replacement x)
+                         x)
+                     (if (= x target)
+                         replacement
+                         x)))
+         form))
+
+  (hidden replace-vars)
+  (defndynamic replace-vars [var-args law acc]
+    (if (empty? var-args)
+      acc
+      (let [next (car var-args)
+            lhs (Laws.substitute (car next) (cadr next) (cadr acc))
+            rhs (Laws.substitute (car next) (cadr next) (caddr acc))]
+           (Laws.replace-vars (cdr var-args) law
+           (list '= lhs rhs)))))
+
+  (hidden build-predicate)
+  (defndynamic build-predicate [vars-args laws acc]
+    (if (empty? laws)
+        acc
+        (Laws.build-predicate vars-args (cdr laws)
+          (cons-last (Laws.replace-vars vars-args (car laws) (car laws)) acc))))
+
+  (hidden replace-interface)
+  (defndynamic replace-interface [interface impl laws acc]
+    (if (empty? laws)
+        acc
+        (let [next (car laws)
+              lhs (Laws.substitute interface impl (cadr next))
+              rhs (Laws.substitute interface impl (caddr next))]
+        (Laws.replace-interface interface impl (cdr laws) (cons-last (list '= lhs rhs) acc)))))
+
+  (hidden pair-up)
+  (defndynamic pair-up [xs ys acc]
+    (if (empty? xs)
+        acc
+        (Laws.pair-up (cdr xs) (cdr ys) (cons-last (list (car xs) (car ys)) acc))))
+
+  (hidden satisfy-laws)
+  (defndynamic satisfy-laws [interface arglist impl]
+    (let [law-dict (Laws.law-dict-name interface)
+          holes (car (eval law-dict))
+          var-with-arg (Laws.pair-up holes arglist '())
+          laws (filter list? (cadr (eval law-dict)))]
+         (if (< (length laws) 2)
+             (Laws.build-predicate var-with-arg (Laws.replace-interface interface impl laws '()) (list 'id))
+             (Laws.build-predicate var-with-arg (Laws.replace-interface interface impl laws '()) (list 'and)))))
+
+  (hidden if-lawful)
+  (defndynamic if-lawful [interface implementation arglist then else]
+    (list 'if (Laws.satisfy-laws interface arglist implementation)
+           then
+           else))
+
+;; Library macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (doc with-laws
+    "Defines an interface with a set of algebraic equations implementations should satisfy."
+    "Syntax:"
+    "```"
+    "(with-laws <definterface form>
+                [<variables>]
+                [<equations>])"
+    "```"
+    "- \<variables\>: should be symbols, e.g. x"
+    "- \<equations\>: are symbol/equation pairs of the form:"
+    "    `foo (= <lhs> <rhs>)`"
+    "where \<lhs\> an \<rhs\> contain one or more \<variables\> or carp code."
+    "\<variables\> will be substituted with inputs when checking laws."
+    "```"
+    ";; functor laws for fmap"
+    "(with-laws (definterface fmap (Fn [&(Fn [a] b) (f a)] (f b)))"
+    "           [f g functor]"
+    "           [identity (= (fmap &id functor) (id functor))"
+    "            composition (= (fmap &(compose f g) functor) (fmap &f (fmap &g functor)))])"
+    "```")
+  (defmacro with-laws [interface-form variables laws]
+    (if (and (Laws.var-array-ok? variables) (Laws.law-array-ok? laws))
+        (let-do [laws-dict-name (Laws.law-dict-name (cadr interface-form))]
+                (eval interface-form)
+                (eval (list 'defdynamic laws-dict-name (list 'quote (list variables laws))))
+        )
+        ()))
+
+  (doc lawful?
+    ("Returns true if `implementation` satisfies the algebraic laws associated " false)
+    "with `interface` when variables are substituted with `arglist` "
+    "```"
+    "(defmodule Maybe"
+    "  (defn map [f maybe]"
+    "    (match maybe"
+    "           (Maybe.Nothing) (Maybe.Nothing)"
+    "           (Maybe.Just x) (Maybe.Just (~f x))))"
+    "  (implements fmap map)"
+    "  (defn fake-map [f maybe]"
+    "    (match maybe"
+    "           (Maybe.Nothing) (Maybe.Nothing)"
+    "           (Maybe.Just x) (do (ignore (~f x)) (the (Maybe Int) (Maybe.Nothing)))))"
+    "  (implements fmap fake-map)"
+    ")"
+    ""
+    "(defn main []"
+    " (do"
+    " (if (lawful? fmap Maybe.map [inc dec (Maybe.Just 1)])"
+    "     (println* \"lawful!\")"
+    "     (println* \"unlawful!\"))"
+    " (if (lawful? fmap Maybe.fake-map [inc dec (Maybe.Just 1)])"
+    "     (println* \"lawful!\")"
+    "     (println* \"unlawful!\"))"
+    " 0)"
+    "```")
+  (defmacro lawful? [interface implementation arglist]
+    (Laws.satisfy-laws interface arglist implementation))
+
+  (doc when-lawful
+    "Executes `form` only when `implementation` is a `lawful` implementation "
+    ("of `interface` given arguments `arglist`" false))
+  (defmacro when-lawful [interface implementation arglist form]
+    (Laws.if-lawful interface implementation arglist form list))
+
+   (doc lawful-or-abort
+    "Immediately exits the program when `implementation` is not a `lawful` "
+    ("implementation of `interface` given arguments `arglist`" false))
+  (defmacro lawful-or-abort [interface implementation arglist form]
+    (Laws.if-lawful interface implementation arglist form '(IO.exit 1)))
+)

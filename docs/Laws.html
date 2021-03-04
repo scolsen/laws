@@ -1,0 +1,159 @@
+<!DOCTYPE HTML>
+
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+        <link rel="stylesheet" href="docs.css">
+    </head>
+    <body>
+        <div class="content">
+            <div class="logo">
+                <a href="">
+                    <img src="">
+                </a>
+                <div class="title">
+                    laws
+                </div>
+                <div class="index">
+                    <ul>
+                        <li>
+                            <a href="Laws.html">
+                                Laws
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <h1>
+                Laws
+            </h1>
+            <div class="module-description">
+                
+            </div>
+            <div class="binder">
+                <a class="anchor" href="#lawful-or-abort">
+                    <h3 id="lawful-or-abort">
+                        lawful-or-abort
+                    </h3>
+                </a>
+                <div class="description">
+                    macro
+                </div>
+                <p class="sig">
+                    Macro
+                </p>
+                <pre class="args">
+                    (lawful-or-abort interface implementation arglist form)
+                </pre>
+                <p class="doc">
+                    <p>Immediately exits the program when <code>implementation</code> is not a <code>lawful</code>
+implementation of <code>interface</code> given arguments <code>arglist</code></p>
+
+                </p>
+            </div>
+            <div class="binder">
+                <a class="anchor" href="#lawful?">
+                    <h3 id="lawful?">
+                        lawful?
+                    </h3>
+                </a>
+                <div class="description">
+                    macro
+                </div>
+                <p class="sig">
+                    Macro
+                </p>
+                <pre class="args">
+                    (lawful? interface implementation arglist)
+                </pre>
+                <p class="doc">
+                    <p>Returns true if <code>implementation</code> satisfies the algebraic laws associated with <code>interface</code> when variables are substituted with <code>arglist</code></p>
+<pre><code>(defmodule Maybe
+  (defn map [f maybe]
+    (match maybe
+           (Maybe.Nothing) (Maybe.Nothing)
+           (Maybe.Just x) (Maybe.Just (~f x))))
+  (implements fmap map)
+  (defn fake-map [f maybe]
+    (match maybe
+           (Maybe.Nothing) (Maybe.Nothing)
+           (Maybe.Just x) (do (ignore (~f x)) (the (Maybe Int) (Maybe.Nothing)))))
+  (implements fmap fake-map)
+)
+
+(defn main []
+ (do
+ (if (lawful? fmap Maybe.map [inc dec (Maybe.Just 1)])
+     (println* &quot;lawful!&quot;)
+     (println* &quot;unlawful!&quot;))
+ (if (lawful? fmap Maybe.fake-map [inc dec (Maybe.Just 1)])
+     (println* &quot;lawful!&quot;)
+     (println* &quot;unlawful!&quot;))
+ 0)
+</code></pre>
+
+                </p>
+            </div>
+            <div class="binder">
+                <a class="anchor" href="#when-lawful">
+                    <h3 id="when-lawful">
+                        when-lawful
+                    </h3>
+                </a>
+                <div class="description">
+                    macro
+                </div>
+                <p class="sig">
+                    Macro
+                </p>
+                <pre class="args">
+                    (when-lawful interface implementation arglist form)
+                </pre>
+                <p class="doc">
+                    <p>Executes <code>form</code> only when <code>implementation</code> is a <code>lawful</code> implementation
+of <code>interface</code> given arguments <code>arglist</code></p>
+
+                </p>
+            </div>
+            <div class="binder">
+                <a class="anchor" href="#with-laws">
+                    <h3 id="with-laws">
+                        with-laws
+                    </h3>
+                </a>
+                <div class="description">
+                    macro
+                </div>
+                <p class="sig">
+                    Macro
+                </p>
+                <pre class="args">
+                    (with-laws interface-form variables laws)
+                </pre>
+                <p class="doc">
+                    <p>Defines an interface with a set of algebraic equations implementations should satisfy.
+Syntax:</p>
+<pre><code>(with-laws &lt;definterface form&gt;
+                [&lt;variables&gt;]
+                [&lt;equations&gt;])
+</code></pre>
+<ul>
+<li>&lt;variables&gt;: should be symbols, e.g. x</li>
+<li>&lt;equations&gt;: are symbol/equation pairs of the form:
+<code>foo (= &lt;lhs&gt; &lt;rhs&gt;)</code>
+where &lt;lhs&gt; an &lt;rhs&gt; contain one or more &lt;variables&gt; or carp code.
+&lt;variables&gt; will be substituted with inputs when checking laws.</li>
+</ul>
+<pre><code>;; functor laws for fmap
+(with-laws (definterface fmap (Fn [&amp;(Fn [a] b) (f a)] (f b)))
+           [f g functor]
+           [identity (= (fmap &amp;id functor) (id functor))
+            composition (= (fmap &amp;(compose f g) functor) (fmap &amp;f (fmap &amp;g functor)))])
+</code></pre>
+
+                </p>
+            </div>
+        </div>
+    </body>
+</html>

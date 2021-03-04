@@ -1,0 +1,40 @@
+(load "laws.carp")
+
+;; helper for function composition
+(defn compose [f g]
+  (fn [z] (f (g z))))
+
+;; fmap with functor laws
+(Laws.with-laws
+  (definterface fmap (Fn [&(Fn [a] b) (f a)] (f b)))
+  [f g functor]
+  [identity (= (fmap &id functor) (id functor))
+   composition (= (fmap &(compose f g) functor) (fmap &f (fmap &g functor)))])
+
+(defmodule Maybe
+  (defn eq [m m2]
+    (Maybe.= &m &m2))
+  (implements = eq)
+  ;; law abiding implementation of fmap
+  (defn map [f maybe]
+    (match maybe
+      (Maybe.Nothing) (Maybe.Nothing)
+      (Maybe.Just x) (Maybe.Just (~f x))))
+  (implements fmap map)
+  ;; unlawful implementation of fmap
+  (defn fake-map [f maybe]
+    (match maybe
+      (Maybe.Nothing) (Maybe.Nothing)
+      (Maybe.Just x) (do (ignore (~f x)) (the (Maybe Int) (Maybe.Nothing)))))
+  (implements fmap fake-map)
+)
+
+(defn main []
+  (do
+      (if (Laws.lawful? fmap Maybe.map [inc dec (Maybe.Just 1)])
+          (println* "lawful!")
+          (println* "unlawful!"))
+      (if (Laws.lawful? fmap Maybe.fake-map [inc dec (Maybe.Just 1)])
+          (println* "lawful!")
+          (println* "unlawful!"))
+      0))

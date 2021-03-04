@@ -1,0 +1,15 @@
+;; Generate documentation for the Laws library
+
+(load "laws.carp")
+
+(Project.config "title" "laws")
+(Project.config "docs-directory" "docs/")
+(Project.config "docs-styling" "docs.css")
+(Project.config "docs-prelude"
+  "The Laws library defines macros for defining algebraic laws for interfaces.
+   It also enables you to check whether or not implementations of interfaces
+   satisfy these laws for a given set of inputs, on-demand.")
+(Project.config "docs-generate-index" true)
+
+(save-docs Laws)
+(quit)
