@@ -4,7 +4,7 @@
 
 **Note: This is not an officially supported Google product.**
 
-Laws is a small library of macros for the Carp programming language that enable
+Laws is a small library of macros for the Carp programming language that enables
 you to define algebraic laws for interfaces and check whether or not
 implementations satisfy those laws on demand. To illustrate, let's take a look
 at an interface for the classic `fmap` function:
@@ -22,7 +22,7 @@ satisfy two algebraic laws (the functor laws):
 
 We can use `laws` to augment our interface with these constraints:
 
-```
+```clojure
 (with-laws (definterface fmap (Fn [&(Fn [a] b) (f a)] (f b)))
            [f g functor]
            [identity (= (fmap &id functor) (id functor))
@@ -33,7 +33,17 @@ To define laws, we provide an interface, a list of variables we can use in the
 algebraic equations associated with laws, and a list of laws, each with a name
 and algebraic equation that intermixes variables and plain old Carp symbols.
 
-After our call to `with-laws` our fmap interface will be defined and we'll be
+The syntax for defining an interface with laws is:
+
+```clojure
+(with-laws <definterface-form>
+           [<variables>...]
+           [<law-name> <equation>...])
+```
+
+Where `<variables>` can occur in `<equation>`s.
+
+After calling `with-laws`, the provided interface will be defined and we'll be
 able to check whether or not implementations satisfy the identity and
 composition laws using the `lawful?` macro. Here's an example using both a
 lawful and unlawful implementation of `fmap`.
@@ -88,13 +98,13 @@ This code sample also illustrates some important facets of the library's macros:
 
    While you cannot use laws for checking that some implementation satisfies
    algebraic laws for *all* possible inputs, this "a la carte" approach makes up
-   for its lack of universality with versatility. Enforcing that some
-   implementation is lawful is entirely up to you, and you can easily and flexibly
-   intermix code that checks for satisfaction of laws with code that doesn't. The
+   for its lack of universality with versatility. Enforcing
+   lawfulness is entirely up to you, and you can easily and flexibly
+   mingle code that checks for satisfaction of laws with code that doesn't. The
    macros provided by the library won't ever prevent you from declaring unlawful
    implementations or from using them. This enables library authors to define
    sharp boundaries around paths that require extra rigor without hamstringing
-   library users.
+   users.
 
 2. Law satisfaction checking incurs runtime costs
 
@@ -105,7 +115,7 @@ This code sample also illustrates some important facets of the library's macros:
 
 ## Usage
 
-```
+```clojure
 (load "laws.carp")
 ```
 
