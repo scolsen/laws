@@ -57,14 +57,18 @@
 
   (hidden substitute)
   (defndynamic substitute [target replacement form]
-    (map (fn [x] (if (not (symbol? x))
-                     (if (or (list? x) (array? x))
-                               (Laws.substitute target replacement x)
-                         x)
-                     (if (= x target)
-                         replacement
-                         x)))
-         form))
+    (if (list? form)
+      (map (fn [x] (if (not (symbol? x))
+                       (if (or (list? x) (array? x))
+                           (Laws.substitute target replacement x)
+                           x)
+                       (if (= x target)
+                           replacement
+                           x)))
+           form)
+     (if (= form target)
+         replacement
+         form)))
 
   (hidden replace-vars)
   (defndynamic replace-vars [var-args law acc]
