@@ -1,0 +1,48 @@
+(load "Test.carp")
+(load "laws.carp")
+
+(use Test)
+
+;; Monoidal laws.
+;;   - left and right identities
+;;   - associativity
+(Laws.with-laws (definterface monoid (Fn [a a] a))
+                [x y z iden]
+                [right-identity (= (monoid x iden) x)
+                 left-identity (= (monoid iden x) x)
+                 associativity (= (monoid x (monoid y z)) (monoid (monoid x y) z))])
+
+;; We define wrapper types for Int to provide two different monoid instances,
+;; one for addition and one for multiplication.
+;;
+;; This is necessary in order to be able to resolve the interface differently
+;; at each call--we can only ever provide a single implementation for a given type
+;; signature, otherwise, Carp would not be able to determine which
+;; implementation to call for the type.
+(deftype Plus [v Int])
+(deftype Mult [v Int])
+
+(defmodule Plus
+  (defn monoid [x y] (Plus (+ @(Plus.v &x) @(Plus.v &y))))
+  (implements monoid monoid)
+  (defn = [x y] (= (Plus.v &x) (Plus.v &y)))
+  (implements = =)
+)
+
+(defmodule Mult
+  (defn monoid [x y] (Mult (* @(Mult.v &x) @(Mult.v &y))))
+  (implements monoid monoid)
+  (defn = [x y] (= (Mult.v &x) (Mult.v &y)))
+  (implements = =)
+)
+
+(deftest test
+  ;; Addition forms a monoid with 0 as the identity.
+  (assert-true test
+    (Laws.lawful? monoid Plus.monoid [(Plus 1) (Plus 2) (Plus 3) (Plus 0)])
+    "lawful? identifies lawful instances")
+  ;; Multiplication forms a monoid, but with 1, not 0 as an identity!
+  (assert-false test
+    (Laws.lawful? monoid Mult.monoid [(Mult 1) (Mult 2) (Mult 3) (Mult 0)])
+    "lawful? does not misidentify unlawful instances")
+)
